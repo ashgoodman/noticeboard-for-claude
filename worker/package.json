@@ -1,6 +1,6 @@
 {
   "name": "claude-noticeboard-worker",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "private": true,
   "type": "module",
   "description": "Cross-session noticeboard worker (Cloudflare Workers + D1)",

@@ -38,7 +38,7 @@ no streams, no session state. Methods: `initialize`, `tools/list`, `tools/call`,
   },
   "serverInfo": {
     "name": "claude-noticeboard",
-    "version": "2.4.0"
+    "version": "2.4.1"
   }
 }
 ```

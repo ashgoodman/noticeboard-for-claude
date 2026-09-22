@@ -6,8 +6,10 @@ import { readFileSync } from "node:fs";
 import {
   parseArgs, readState, renderToml, assessExisting, generateBoardKey,
   mergeHookSettings, SetupError, digestTime, checkTopicName, checkNtfyToken,
-  chooseNtfyTopic,
+  chooseNtfyTopic, isLookupFailure, publishedAddress, makeBoardFetch, keepPrivate,
 } from "./setup.mjs";
+import { createServer } from "node:http";
+import { statSync, rmSync } from "node:fs";
 
 let failures = 0;
 function check(label, cond, detail) {
@@ -245,6 +247,56 @@ try {
 } finally {
   process.env.HOME = realHome;
 }
+
+console.log("\n7. reaching a board this computer still thinks is missing");
+const lookupErr = (code) => Object.assign(new TypeError("fetch failed"), { cause: { code } });
+check("a name that does not resolve counts as a lookup failure",
+  isLookupFailure(lookupErr("ENOTFOUND")) && isLookupFailure(lookupErr("EAI_AGAIN")));
+check("a refused connection does not", !isLookupFailure(lookupErr("ECONNREFUSED")));
+check("nor an error with no cause", !isLookupFailure(new Error("x")));
+const dohAnswer = (body) => async () => ({ json: async () => body });
+check("Cloudflare DNS: the first address record is used",
+  await publishedAddress("b.example", dohAnswer({ Answer: [{ type: 5, data: "alias." },
+    { type: 1, data: "192.0.2.7" }] })) === "192.0.2.7");
+check("no answer means no address", await publishedAddress("b.example", dohAnswer({})) === null);
+check("an unreachable DNS service means no address",
+  await publishedAddress("b.example", async () => { throw new Error("down"); }) === null);
+
+const server = createServer((req, res) => {
+  let body = "";
+  req.on("data", (d) => { body += d; });
+  req.on("end", () => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true, method: req.method, host: req.headers.host, got: body }));
+  });
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const port = server.address().port;
+let asked = 0;
+const bf = makeBoardFetch(async () => { asked++; return "127.0.0.1"; });
+const url = `http://nb-setup-check.invalid:${port}`;
+const first = await bf(url + "/health", { headers: { "user-agent": "t" } }).catch((e) => e);
+check("a board whose name will not resolve is reached through the DNS answer",
+  first.status === 200 && (await first.json()).ok === true, first.message);
+const posted = await bf(url + "/mcp", { method: "POST", body: "{\"a\":1}",
+  headers: { "content-type": "application/json" } });
+const echo = await posted.json();
+check("POSTs carry their body, and the board sees its own name as the host",
+  echo.method === "POST" && echo.got === "{\"a\":1}" && echo.host === `nb-setup-check.invalid:${port}`, echo);
+check("and the name is looked up once, then remembered", asked === 1 && bf.pinned("nb-setup-check.invalid"));
+const noAnswer = makeBoardFetch(async () => null);
+const failed = await noAnswer(url + "/health").then(() => null, (e) => e);
+check("with no DNS answer either, the original failure stands", failed && isLookupFailure(failed));
+server.close();
+
+console.log("\n8. key and token files are kept private");
+const dir = mkdtempSync(join(tmpdir(), "nb-perm-"));
+const f = join(dir, "token");
+writeFileSync(f, "x", { mode: 0o644 });
+check("a file others can read is tightened", keepPrivate(f) === true && (statSync(f).mode & 0o777) === 0o600);
+check("a private file is left alone", keepPrivate(f) === false);
+check("a missing file is not an error", keepPrivate(join(dir, "none")) === false);
+rmSync(dir, { recursive: true, force: true });
 
 console.log(failures ? "\n" + failures + " FAILED" : "\nsetup.mjs holds up");
 process.exit(failures ? 1 : 0);

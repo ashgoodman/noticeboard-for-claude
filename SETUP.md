@@ -387,7 +387,7 @@ With the board key:
 curl -s -X POST -H "x-api-key: $(cat ~/.config/claude-noticeboard/token)" -H 'content-type: application/json' $BOARD/mcp -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
 ```
 
-**You should see** `"serverInfo":{"name":"claude-noticeboard","version":"2.4.0"}`.
+**You should see** `"serverInfo":{"name":"claude-noticeboard","version":"2.4.1"}`.
 
 ```bash
 curl -s -X POST -H "x-api-key: $(cat ~/.config/claude-noticeboard/token)" -H 'content-type: application/json' $BOARD/mcp -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | grep -o '"name":"[a-z_]*"' | wc -l
@@ -848,6 +848,7 @@ version on all at once. Afterwards, **start new chats** to see any new tools.
 | A chat does not show the board's tools, or is missing new ones | It loaded the tool list before they existed. Start a new chat. |
 | The hooks do nothing (13.6 finds no file) | Check, in order: `BOARD_URL` has no `/mcp` on the end (13.4A); the board key file exists (`ls ~/.config/claude-noticeboard/token`); the settings file is valid (13.5); and you started a new session. |
 | `setup.mjs`: *this account has no workers.dev subdomain yet* | Open **Workers & Pages** in the Cloudflare dashboard once, then run it again. |
+| `setup.mjs`: *reached it through Cloudflare's DNS*, or `curl: (6) Could not resolve host` for a custom domain you just added | This computer looked the address up before Cloudflare published it, and remembers it as missing for up to half an hour. The board is fine, and so is the connector. Setup's checks go around it; curl and the hooks on this computer work once it clears. |
 | `setup.mjs`: *already exists in this account* | It found an existing board and stopped rather than replace that board's key. Use `--name` for a second board, or README.md "Operating" to upgrade the existing one. |
 | No test notification arrived | Check the ntfy app is signed in to ntfy.sh and subscribed to exactly your topic (14.4), and that your phone allows ntfy's notifications. Then `node setup.mjs --notify-test`, or the curl in step 14.6. |
 | The test says `"configured":false` | The board does not have the topic yet. Do step 14.5, or wait a few seconds after it and try again. |

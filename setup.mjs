@@ -26,7 +26,10 @@
 
 import {
   readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, chmodSync,
+  statSync,
 } from "node:fs";
+import http from "node:http";
+import https from "node:https";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
@@ -376,10 +379,93 @@ async function until(fn, seconds) {
   return last === true ? true : (last || "no answer");
 }
 
+// A computer that asked for a new address before Cloudflare published it
+// remembers "no such address" for a while (up to half an hour, the zone's
+// negative-cache time), though the board is up. So when this computer cannot
+// look the board up, setup asks Cloudflare's DNS directly and connects to the
+// address it gives. The certificate is still checked against the board's name.
+export function isLookupFailure(e) {
+  const code = e && e.cause && e.cause.code;
+  return code === "ENOTFOUND" || code === "EAI_AGAIN";
+}
+
+export async function publishedAddress(host, fetchImpl = fetch) {
+  try {
+    const r = await fetchImpl("https://cloudflare-dns.com/dns-query?type=A&name=" +
+                              encodeURIComponent(host),
+                              { headers: { accept: "application/dns-json", "user-agent": UA } });
+    const a = ((await r.json()).Answer || []).find((x) => x.type === 1);
+    return a ? a.data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// fetch, connecting to a given address instead of looking the name up. Only
+// as much of fetch's answer as setup's own calls use.
+export function pinnedFetch(url, init = {}, address) {
+  const u = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = (u.protocol === "http:" ? http : https).request(u, {
+      method: init.method || "GET", headers: init.headers || {}, timeout: 20000,
+      lookup: (host, opts, cb) => (opts && opts.all
+        ? cb(null, [{ address, family: 4 }]) : cb(null, address, 4)),
+    }, (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (d) => { body += d; });
+      res.on("end", () => resolve({
+        status: res.statusCode, ok: res.statusCode >= 200 && res.statusCode < 300,
+        text: async () => body, json: async () => JSON.parse(body),
+      }));
+    });
+    req.on("timeout", () => req.destroy(new Error("timed out")));
+    req.on("error", reject);
+    if (init.body) req.write(init.body);
+    req.end();
+  });
+}
+
+// Every call to the board goes through this. Once a name has needed
+// Cloudflare's DNS, it keeps using it for the rest of the run.
+export function makeBoardFetch(resolve = publishedAddress) {
+  const pins = new Map();
+  const boardFetch = async (url, init) => {
+    const host = new URL(url).hostname;
+    if (!pins.has(host)) {
+      try {
+        return await fetch(url, init);
+      } catch (e) {
+        if (!isLookupFailure(e)) throw e;
+        const address = await resolve(host);
+        if (!address) throw e;
+        pins.set(host, address);
+      }
+    }
+    return pinnedFetch(url, init, pins.get(host));
+  };
+  boardFetch.pinned = (host) => pins.has(host);
+  return boardFetch;
+}
+const boardFetch = makeBoardFetch();
+
+// Key and token files are for their owner alone. One made with an editor
+// rather than the guide's command is usually readable by every user on the
+// machine, so setup tightens any it reads.
+export function keepPrivate(file) {
+  try {
+    if ((statSync(file).mode & 0o077) === 0) return false;
+    chmodSync(file, 0o600);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function boardCall(boardUrl, key, method, extra) {
   const headers = { "content-type": "application/json", "user-agent": UA };
   if (key) headers["x-api-key"] = key;
-  const res = await fetch(boardUrl + "/mcp", {
+  const res = await boardFetch(boardUrl + "/mcp", {
     method: "POST", headers,
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: extra || {} }),
   });
@@ -393,7 +479,7 @@ export async function checkBoard(boardUrl, key, seconds = 120) {
     return outcome === true;
   };
   const health = await until(async () => {
-    const r = await fetch(boardUrl + "/health", { headers: { "user-agent": UA } });
+    const r = await boardFetch(boardUrl + "/health", { headers: { "user-agent": UA } });
     return r.ok && (await r.json()).ok === true;
   }, seconds);
   if (!record("the board answers at " + boardUrl, health)) return results;
@@ -436,6 +522,13 @@ async function runChecks(boardUrl, key) {
   for (const r of results) {
     done((r.pass ? "ok     " : "NOT YET") + "  " + r.label +
          (r.pass ? "" : "  (" + r.detail + ")"));
+  }
+  if (boardFetch.pinned(new URL(boardUrl).hostname)) {
+    done("");
+    done("This computer still has the board's address down as missing, from a");
+    done("lookup before it existed, so setup reached it through Cloudflare's DNS.");
+    done("It clears by itself within about half an hour. Until then the Claude");
+    done("Code hooks on this computer cannot reach the board; the connector can.");
   }
   return results.every((r) => r.pass);
 }
@@ -491,6 +584,9 @@ async function main() {
       "saved something else. SETUP.md step 2.");
   }
   done("valid and active");
+  if (!process.env.CLOUDFLARE_API_TOKEN && keepPrivate(PATHS.cfToken())) {
+    done("made " + PATHS.cfToken() + " readable by you alone");
+  }
 
   // 2. Which account.
   step("Finding your Cloudflare account");
@@ -644,6 +740,7 @@ async function main() {
   if (existsSync(keyFile) && readFileSync(keyFile, "utf8").trim()) {
     key = readFileSync(keyFile, "utf8").trim();
     done("reusing the board key already in " + keyFile);
+    if (keepPrivate(keyFile)) done("made it readable by you alone");
   } else {
     key = generateBoardKey();
     mkdirSync(dirname(keyFile), { recursive: true, mode: 0o700 });
@@ -697,7 +794,7 @@ async function testNotification(boardUrl, key, seconds) {
   const end = Date.now() + seconds * 1000;
   while (Date.now() < end) {
     try {
-      const res = await fetch(boardUrl + "/v1/notify/test", {
+      const res = await boardFetch(boardUrl + "/v1/notify/test", {
         method: "POST", headers: { "x-api-key": key, "user-agent": UA },
       });
       last = await res.json();
@@ -719,6 +816,7 @@ async function prepareNotifications(o) {
       `read -rsp "ntfy token: " t && printf '%s' "$t" > ~/.config/ntfy/token && unset t && echo " saved"`);
   }
   const token = checkNtfyToken(readFileSync(file, "utf8").trim());
+  if (keepPrivate(file)) done("made " + file + " readable by you alone");
   let account;
   try {
     const res = await fetch(NTFY + "/v1/account", {

@@ -1806,7 +1806,7 @@ async function handle(env, msg) {
     return ok({
       protocolVersion: PROTOCOL,
       capabilities: { tools: {} },
-      serverInfo: { name: "claude-noticeboard", version: "2.4.0" },
+      serverInfo: { name: "claude-noticeboard", version: "2.4.1" },
     });
   }
   if (method === "tools/list") return ok({ tools: TOOLS });
