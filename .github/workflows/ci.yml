@@ -1,0 +1,48 @@
+name: CI
+
+# Runs on every push and PR to main. Everything here is hermetic: the suite
+# drives the real worker over its own HTTP surface against an in-memory SQLite,
+# and the build step is a dry run. No Cloudflare token, no account, no network
+# writes - deploying stays a manual step run from a trusted machine.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Run test suite
+        run: npm test
+      - name: API reference is up to date
+        # docs/API.md is generated from the tool definitions and a real run of
+        # the worker. If a tool changed and the reference was not regenerated,
+        # this fails; the fix is `npm run api-docs` in worker/.
+        run: node scripts/api-docs.mjs --check
+      - name: Setup script tests
+        # setup.mjs writes configs and settings files and guards live boards;
+        # all of that is pure and tested here with no network or account.
+        working-directory: .
+        run: node setup.test.mjs
+      - name: Hook test suite
+        # The hook is the only thing here that acts without a human, so what
+        # it refuses to do is worth a gate of its own. Runs from the repo
+        # root against a stub of the /v1 surface; no network, no board.
+        working-directory: .
+        run: python3 hooks/test_hook.py
+      - name: Worker build dry-run
+        # --dry-run bundles the worker and validates wrangler.toml without
+        # authenticating or uploading, so it catches a worker that will not
+        # build before it is ever deployed.
+        # wrangler.toml is each board's own file and is not in the repository,
+        # so the build is checked against the example every board starts from.
+        run: cp wrangler.toml.example wrangler.toml && npx --yes wrangler deploy --dry-run

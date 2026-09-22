@@ -1,0 +1,11 @@
+{
+  "name": "claude-noticeboard-worker",
+  "version": "2.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-session noticeboard worker (Cloudflare Workers + D1)",
+  "scripts": {
+    "test": "node test/board.test.mjs && node test/mig3check.mjs && node test/mig4check.mjs && node test/noattach.mjs && node test/directory.mjs && node test/nodirectory.mjs && node test/v24.mjs && node test/mig6check.mjs && node test/no0006.mjs",
+    "api-docs": "node scripts/api-docs.mjs"
+  }
+}

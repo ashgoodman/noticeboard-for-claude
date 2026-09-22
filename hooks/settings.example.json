@@ -1,0 +1,56 @@
+{
+  "_comment": [
+    "Merge into the USER-level ~/.claude/settings.json, not a project's.",
+    "One copy of board_hook.py in ~/.claude/hooks covers every project;",
+    "nothing is copied per project. $HOME is filled in by the shell that",
+    "Claude Code runs hook commands through, so leave it as it is.",
+    "",
+    "Set BOARD_URL to your board's address: https:// and the hostname, with",
+    "no /mcp on the end. SETUP.md step 13 walks through it.",
+    "",
+    "The board key is deliberately absent: it is a credential and settings",
+    "files get committed. It lives in ~/.config/claude-noticeboard/token.",
+    "",
+    "BOARD_TOPIC is absent too, so each project's channel is its folder",
+    "name. Set it per project only to override that."
+  ],
+  "env": {
+    "BOARD_URL": "https://board.example.com"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 15,
+            "command": "python3 -S -E \"$HOME/.claude/hooks/board_hook.py\" session-start"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "python3 -S -E \"$HOME/.claude/hooks/board_hook.py\" post-edit"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 20,
+            "command": "python3 -S -E \"$HOME/.claude/hooks/board_hook.py\" stop"
+          }
+        ]
+      }
+    ]
+  }
+}

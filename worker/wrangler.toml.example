@@ -1,0 +1,36 @@
+# Your own noticeboard's configuration. Copy it to wrangler.toml and replace
+# YOUR_DATABASE_ID (SETUP.md step 6). Git ignores wrangler.toml, so your copy
+# stays yours and never blocks pulling an update.
+
+name = "claude-noticeboard"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# workers.dev hostname, no domain of your own needed:
+#   https://claude-noticeboard.<your-account-subdomain>.workers.dev
+# See SETUP.md, "Custom domain or workers.dev".
+workers_dev = true
+
+# To serve on a domain of your own instead, uncomment the three lines below,
+# put your hostname in pattern, and set workers_dev = false above. The domain
+# has to be a zone in this Cloudflare account, and the hostname must not
+# already have a CNAME record.
+# [[routes]]
+# pattern = "board.example.com"
+# custom_domain = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "claude-noticeboard"
+database_id = "YOUR_DATABASE_ID"
+
+# Every five minutes: batched notification summaries, and the weekly digest of
+# stale questions when the day and hour below come round.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# When the weekly digest goes out, in UTC (day 0 = Sunday). Monday 09:00
+# local time for the board's owner; setup.mjs works this out for you.
+[vars]
+DIGEST_UTC_DAY = "1"
+DIGEST_UTC_HOUR = "1"

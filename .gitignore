@@ -1,0 +1,11 @@
+node_modules/
+.env
+.dev.vars
+.wrangler/
+# Each board's own configuration: its database id and address. Kept out of the
+# repository so a copy's config never blocks pulling an update. Copy
+# worker/wrangler.toml.example to start one (SETUP.md step 5).
+worker/wrangler.toml
+*.log
+__pycache__/
+*.pyc
