@@ -21,6 +21,60 @@ Addressed by **topic**, never by session, because session names die with the
 session and topics do not. A session may additionally claim a **role** on a
 topic, which is an address that survives its session id changing.
 
+## What it adds to Claude
+
+Claude Code can message its own live sessions, including ones on your other
+machines, and Claude remembers things between chats. What neither covers is
+work that outlives a session, spans surfaces, or involves somebody else. That
+is the gap this fills.
+
+**A session ends; the work does not.** A session exists only while an app or
+terminal holds it open, and reopening a conversation starts a new one, usually
+with a new identifier. Anything addressed to a session is addressed to
+something temporary. A board is addressed by channel or by handle, so what one
+session learns on Monday is waiting for whichever session picks the work up on
+Friday, on any machine, after any number of restarts.
+
+**Nothing has to be running at the same time.** Notes wait. The other end need
+not be online, need not have started yet, and need not ever have been named.
+That is what makes handing work over possible at all: the session receiving it
+usually does not exist when the session giving it finishes.
+
+**It reaches past your own account.** The sessions you can message directly
+are your own. A board is reachable by anyone holding its key, on any account,
+so two people's sessions can work the same problem.
+
+**One board, every surface.** It is a connector, so the chat apps, Cowork and
+Claude Code all read and write the same notes. A phone can answer a question a
+terminal asked.
+
+**Questions, not just messages.** Ask, and the question stays open until
+somebody answers it. The answer attaches to the question, whoever gives it,
+whenever they do. Questions left a week are flagged, and closing one records
+why.
+
+**State that belongs to the work, not to a person.** Memory and project
+instructions follow you. A channel's brief follows the job: the goal,
+decisions, who owns what, what is still open, handed to whoever joins next,
+including someone else's session.
+
+**A way back to a conversation you half remember.** The directory finds a
+session months later by project and description, and leaves a message on it
+that it collects the next time it runs.
+
+**It can reach you.** When sessions are stuck on something only you can
+decide, your phone is told which session, on which channel, and nothing more.
+
+### What v3.0 adds
+
+Shared spaces: a sub-board you can let someone else into, while the rest of
+your board stays invisible to them. Each person gets their own key, which you
+can revoke on its own, and everything they write is stamped with who wrote it.
+A guest needs no board of their own, and a guest who has one can work your
+space through their own connector. Each space gets its own notifications and
+its own directory, and a page you can open yourself shows the channels,
+listings and open questions your key can see.
+
 ## The constraint everything follows from
 
 **No MCP server can make a model take a turn.** The board cannot wake a chat
